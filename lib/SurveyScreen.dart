@@ -1,10 +1,16 @@
 import 'dart:convert';
-
+import 'dart:developer';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:surveyflutter/Model/CommonModel.dart';
 import 'package:surveyflutter/Model/ProjectModel%20.dart';
+import 'package:surveyflutter/RefreshToken/refreshTokenFlutter.dart';
+import 'package:surveyflutter/SurveySuccessScreen.dart';
+import 'package:surveyflutter/api_Service/api_service.dart';
+import 'package:surveyflutter/sslbyypass.dart';
 
 // ================= MODEL =================
 class FamilyMember {
@@ -50,6 +56,8 @@ class _SurveyScreenState extends State<SurveyScreen> {
   TextEditingController();
   final TextEditingController mobileController = TextEditingController();
         TextEditingController gpsController = TextEditingController();
+  TextEditingController Villagecontroller = TextEditingController();
+  TextEditingController Hamletcontroller = TextEditingController();
 
         ////District
 
@@ -277,6 +285,7 @@ class _SurveyScreenState extends State<SurveyScreen> {
   ];
 
 
+
   ////sico
 
   Widget _buildExpandableHeader(
@@ -315,7 +324,24 @@ class _SurveyScreenState extends State<SurveyScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Survey Form")),
+      appBar: AppBar(
+        backgroundColor: Color(0xFF0366A3),
+        title: Row(
+          children: const [
+            Image(image: AssetImage("assets/panitwo.png"),
+                color: Colors.white,
+                height: 30),
+            SizedBox(width: 8),
+            Text(
+              "Baseline Survey",
+              style: TextStyle(
+                fontWeight: FontWeight.bold, // 👈 bold text
+                color: Colors.white
+              ),
+            ),
+          ],
+        ),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: ListView(
@@ -513,7 +539,7 @@ class _SurveyScreenState extends State<SurveyScreen> {
            DropdownButtonFormField<CommonModel>(
               isExpanded: true,
               decoration: const InputDecoration(
-                labelText: "Village",
+                labelText: "Block",
                 border: OutlineInputBorder(),
               ),
               value: selectedVillage,
@@ -547,6 +573,24 @@ class _SurveyScreenState extends State<SurveyScreen> {
 
                 print("Selected Village ID: ${value?.id}");
               },
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: Villagecontroller,
+              decoration: const InputDecoration(
+                labelText: "Village",
+                hintText: "Enter Village",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 24),
+            TextField(
+              controller: Hamletcontroller,
+              decoration: const InputDecoration(
+                labelText: "Name of Hamlet",
+                hintText: "Enter Village",
+                border: OutlineInputBorder(),
+              ),
             ),
 
             // ================= FAMILY HEAD =================
@@ -586,9 +630,10 @@ class _SurveyScreenState extends State<SurveyScreen> {
               decoration: const InputDecoration(
                 labelText: "Mobile Number",
                 border: OutlineInputBorder(),
-                counterText: "",
+                counterText: "10",
               ),
             ),
+
 
             const SizedBox(height: 12),
 
@@ -632,6 +677,7 @@ class _SurveyScreenState extends State<SurveyScreen> {
                 border: OutlineInputBorder(),
               ),
               items: [
+                "Illiterate",
                 "Primary",
                 "Upper Primary",
                 "High School",
@@ -709,41 +755,86 @@ class _SurveyScreenState extends State<SurveyScreen> {
                       children: [
                         Text("Member ${index + 1}"),
 
-                        TextField(
-                          decoration:
-                          const InputDecoration(labelText: "Name"),
-                          onChanged: (val) => m.name = val,
-                        ),
-
-                        TextField(
+                        TextFormField(
+                          key: ValueKey("Name_$index"),
+                          initialValue: m.name,
                           decoration: const InputDecoration(
-                              labelText: "Father Name"),
-                          onChanged: (val) => m.fatherName = val,
+                            labelText: "Name",
+                            border: OutlineInputBorder(),
+                          ),
+                          onChanged: (val) {
+                            m.name = val;
+                          },
                         ),
-
+                        const SizedBox(height: 24),
+                        TextFormField(
+                          key: ValueKey("father_$index"),
+                          initialValue: m.fatherName,
+                          decoration: const InputDecoration(
+                            labelText: "Father Name",
+                            border: OutlineInputBorder(),
+                          ),
+                          onChanged: (val) {
+                            m.fatherName = val;
+                          },
+                        ),
+                        const SizedBox(height: 24),
                         DropdownButtonFormField<String>(
-                          decoration:
-                          const InputDecoration(labelText: "Relation"),
-                          items: ["Son", "Daughter", "Spouse"]
+                          value: m.relation, // 🔥 IMPORTANT (bind selected value)
+                          decoration: const InputDecoration(
+                            labelText: "Relation",
+                            border: OutlineInputBorder(),
+                          ),
+                          items: [
+                            "Father",
+                            "Mother",
+                            "Brother",
+                            "Sister",
+                            "Nephew",
+                            "Niece",
+                            "Grand Son",
+                            "Grand Daughter",
+                            "Son",
+                            "Daughter",
+                            "Spouse"
+                          ]
                               .map((e) => DropdownMenuItem(
-                              value: e, child: Text(e)))
+                            value: e,
+                            child: Text(e),
+                          ))
                               .toList(),
-                          onChanged: (val) => m.relation = val,
+                          onChanged: (val) {
+                            setState(() {
+                              m.relation = val;
+                            });
+                          },
                         ),
-
+                        const SizedBox(height: 24),
                         DropdownButtonFormField<String>(
-                          decoration:
-                          const InputDecoration(labelText: "Gender"),
+                          value: m.gender, // 🔥 important
+                          decoration: const InputDecoration(
+                            labelText: "Gender",
+                            border: OutlineInputBorder(),
+                          ),
                           items: ["Male", "Female"]
                               .map((e) => DropdownMenuItem(
-                              value: e, child: Text(e)))
+                            value: e,
+                            child: Text(e),
+                          ))
                               .toList(),
-                          onChanged: (val) => m.gender = val,
+                          onChanged: (val) {
+                            setState(() {
+                              m.gender = val;
+                            });
+                          },
                         ),
-
+                        const SizedBox(height: 24),
                         DropdownButtonFormField<int>(
-                          decoration:
-                          const InputDecoration(labelText: "Age"),
+                          value: m.age, // 🔥 bind selected value
+                          decoration: const InputDecoration(
+                            labelText: "Age",
+                            border: OutlineInputBorder(),
+                          ),
                           items: List.generate(
                             83,
                                 (i) => DropdownMenuItem(
@@ -751,10 +842,72 @@ class _SurveyScreenState extends State<SurveyScreen> {
                               child: Text((i + 18).toString()),
                             ),
                           ),
-                          onChanged: (val) => m.age = val,
+                          onChanged: (val) {
+                            setState(() {
+                              m.age = val;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 24),
+
+                        DropdownButtonFormField<String>(
+                          value: m.education, // 🔥 bind value
+                          decoration: const InputDecoration(
+                            labelText: "Education",
+                            border: OutlineInputBorder(),
+                          ),
+                          items: [
+                            "Primary",
+                            "Upper Primary",
+                            "High School",
+                            "Intermediate",
+                            "Graduate",
+                            "Post Graduate"
+                          ]
+                              .map((e) => DropdownMenuItem(
+                            value: e,
+                            child: Text(e),
+                          ))
+                              .toList(),
+                          onChanged: (val) {
+                            setState(() {
+                              m.education = val;
+                            });
+                          },
                         ),
 
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 24),
+
+                        DropdownButtonFormField<String>(
+                          value: m.occupation, // 🔥 bind value
+                          decoration: const InputDecoration(
+                            labelText: "Primary Occupation",
+                            border: OutlineInputBorder(),
+                          ),
+                          items: [
+                            "House Wife",
+                            "Farming",
+                            "Government Job",
+                            "Private Job",
+                            "Wage Labour",
+                            "Shop",
+                            "Others"
+                          ]
+                              .map((e) => DropdownMenuItem(
+                            value: e,
+                            child: Text(e),
+                          ))
+                              .toList(),
+                          onChanged: (val) {
+                            setState(() {
+                              m.occupation = val;
+                            });
+                          },
+                        ),
+
+                        const SizedBox(height: 24),
+
+
 
                         TextButton(
                           onPressed: () {
@@ -826,29 +979,38 @@ class _SurveyScreenState extends State<SurveyScreen> {
                         const SizedBox(height: 10),
 
                         // Name
-                        TextField(
+                        TextFormField(
+                          key: ValueKey("child_name_$index"),
+                          initialValue: child.name,
                           decoration: const InputDecoration(
                             labelText: "Name of Child",
                             border: OutlineInputBorder(),
                           ),
-                          onChanged: (val) => child.name = val,
+                          onChanged: (val) {
+                            child.name = val;
+                          },
                         ),
 
                         const SizedBox(height: 10),
 
                         // Father Name
-                        TextField(
+                        TextFormField(
+                          key: ValueKey("child_father_$index"),
+                          initialValue: child.fatherName,
                           decoration: const InputDecoration(
                             labelText: "Father Name",
                             border: OutlineInputBorder(),
                           ),
-                          onChanged: (val) => child.fatherName = val,
+                          onChanged: (val) {
+                            child.fatherName = val;
+                          },
                         ),
 
                         const SizedBox(height: 10),
 
                         // Relation
                         DropdownButtonFormField<String>(
+                          value: child.relation, // 🔥 bind value
                           decoration: const InputDecoration(
                             labelText: "Relation",
                             border: OutlineInputBorder(),
@@ -873,13 +1035,16 @@ class _SurveyScreenState extends State<SurveyScreen> {
 
                         // Gender
                         DropdownButtonFormField<String>(
+                          value: child.gender, // 🔥 bind value
                           decoration: const InputDecoration(
                             labelText: "Gender",
                             border: OutlineInputBorder(),
                           ),
                           items: ["Male", "Female"]
-                              .map((e) =>
-                              DropdownMenuItem(value: e, child: Text(e)))
+                              .map((e) => DropdownMenuItem(
+                            value: e,
+                            child: Text(e),
+                          ))
                               .toList(),
                           onChanged: (val) {
                             setState(() {
@@ -892,6 +1057,7 @@ class _SurveyScreenState extends State<SurveyScreen> {
 
                         // Age (1–18)
                         DropdownButtonFormField<int>(
+                          value: child.age, // 🔥 bind value
                           decoration: const InputDecoration(
                             labelText: "Age",
                             border: OutlineInputBorder(),
@@ -914,13 +1080,16 @@ class _SurveyScreenState extends State<SurveyScreen> {
 
                         // Marital Status
                         DropdownButtonFormField<String>(
+                          value: child.maritalStatus, // 🔥 bind value
                           decoration: const InputDecoration(
                             labelText: "Marital Status",
                             border: OutlineInputBorder(),
                           ),
                           items: ["Married", "Unmarried"]
-                              .map((e) =>
-                              DropdownMenuItem(value: e, child: Text(e)))
+                              .map((e) => DropdownMenuItem(
+                            value: e,
+                            child: Text(e),
+                          ))
                               .toList(),
                           onChanged: (val) {
                             setState(() {
@@ -933,6 +1102,7 @@ class _SurveyScreenState extends State<SurveyScreen> {
 
                         // Education
                         DropdownButtonFormField<String>(
+                          value: child.education, // 🔥 bind value
                           decoration: const InputDecoration(
                             labelText: "Education",
                             border: OutlineInputBorder(),
@@ -947,8 +1117,10 @@ class _SurveyScreenState extends State<SurveyScreen> {
                             "Intermediate",
                             "Graduate"
                           ]
-                              .map((e) =>
-                              DropdownMenuItem(value: e, child: Text(e)))
+                              .map((e) => DropdownMenuItem(
+                            value: e,
+                            child: Text(e),
+                          ))
                               .toList(),
                           onChanged: (val) {
                             setState(() {
@@ -961,13 +1133,16 @@ class _SurveyScreenState extends State<SurveyScreen> {
 
                         // Education Status
                         DropdownButtonFormField<String>(
+                          value: child.educationStatus, // 🔥 bind value
                           decoration: const InputDecoration(
                             labelText: "Education Status",
                             border: OutlineInputBorder(),
                           ),
                           items: ["Continue", "Completed", "Dropout"]
-                              .map((e) =>
-                              DropdownMenuItem(value: e, child: Text(e)))
+                              .map((e) => DropdownMenuItem(
+                            value: e,
+                            child: Text(e),
+                          ))
                               .toList(),
                           onChanged: (val) {
                             setState(() {
@@ -980,13 +1155,16 @@ class _SurveyScreenState extends State<SurveyScreen> {
 
                         // Schooling
                         DropdownButtonFormField<String>(
+                          value: child.schooling, // 🔥 bind value
                           decoration: const InputDecoration(
                             labelText: "Schooling",
                             border: OutlineInputBorder(),
                           ),
                           items: ["Government School", "Private School"]
-                              .map((e) =>
-                              DropdownMenuItem(value: e, child: Text(e)))
+                              .map((e) => DropdownMenuItem(
+                            value: e,
+                            child: Text(e),
+                          ))
                               .toList(),
                           onChanged: (val) {
                             setState(() {
@@ -1109,26 +1287,48 @@ class _SurveyScreenState extends State<SurveyScreen> {
 
               // Solar
               DropdownButtonFormField<String>(
-                decoration: const InputDecoration(
-                  labelText: "Solar Energy Consumption",
-                  border: OutlineInputBorder(),
-                ),
-                items: ["Yes", "No"]
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                    .toList(),
-                onChanged: (v) => setState(() => solar = v),
+                value: solar,
+                decoration: const InputDecoration
+                  ( labelText: "Solar Energy Consumption",
+                  border: OutlineInputBorder(),),
+                items: ["Yes", "No"].map((e) {
+                  return DropdownMenuItem(value: e, child: Text(e));
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    solar = value;
+
+                    // ✅ CLEAR if NO
+                    if (solar == "No") {
+                      solarType = null;
+                    }
+                  });
+                },
               ),
 
               const SizedBox(height: 12),
 
               // Solar Type
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: "Type of Solar Use",
-                  border: OutlineInputBorder(),
+              if (solar == "Yes") ...[
+                const SizedBox(height: 10),
+
+                TextField(
+                  decoration: const InputDecoration(
+                    labelText: "Type of Solar Use",
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (value){
+                    setState(() {
+                      solar = value;
+
+                      // ✅ clear value when No
+                      if (solar == "No") {
+                        solarType = null;
+                      }
+                    });
+                  }
                 ),
-                onChanged: (v) => solarType = v,
-              ),
+              ],
 
               const SizedBox(height: 12),
 
@@ -1241,30 +1441,34 @@ class _SurveyScreenState extends State<SurveyScreen> {
               const SizedBox(height: 12),
 
               // Immunized
-              DropdownButtonFormField<String>(
-                decoration: const InputDecoration(
-                  labelText: "Children Fully Immunized (0-5)",
-                  border: OutlineInputBorder(),
-                ),
-                items: ["Yes", "No", "Don't Know"]
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                    .toList(),
-                onChanged: (v) => setState(() => immunized = v),
-              ),
+              if (hasYoungChildren()) ...[
 
-              const SizedBox(height: 12),
-
-              // Anganwadi
-              DropdownButtonFormField<String>(
-                decoration: const InputDecoration(
-                  labelText: "Children attending Anganwadi",
-                  border: OutlineInputBorder(),
+                DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(
+                    labelText: "Children Fully Immunized",
+                    border: OutlineInputBorder(),
+                  ),
+                  value: immunized,
+                  items: ["Yes", "No"].map((e) {
+                    return DropdownMenuItem(value: e, child: Text(e));
+                  }).toList(),
+                  onChanged: (v) => setState(() => immunized = v),
                 ),
-                items: ["Yes", "No"]
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                    .toList(),
-                onChanged: (v) => setState(() => anganwadi = v),
-              ),
+
+                const SizedBox(height: 10),
+//////Aganwadi
+                DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(
+                    labelText: "Children Attending Anganwadi",
+                    border: OutlineInputBorder(),
+                  ),
+                  value: anganwadi,
+                  items: ["Yes", "No"].map((e) {
+                    return DropdownMenuItem(value: e, child: Text(e));
+                  }).toList(),
+                  onChanged: (v) => setState(() => anganwadi = v),
+                ),
+              ],
 
               const SizedBox(height: 12),
 
@@ -1423,6 +1627,19 @@ class _SurveyScreenState extends State<SurveyScreen> {
                   labelText: "Number of Migrating Members",
                   border: OutlineInputBorder(),
                 ),
+                onChanged: (val) {
+                  int total = members.length;
+                  int entered = int.tryParse(val) ?? 0;
+
+                  if (entered > total) {
+                    showMsg("Max allowed is $total");
+                    migratingMembersController.text = total.toString();
+                    migratingMembersController.selection =
+                        TextSelection.fromPosition(
+                          TextPosition(offset: migratingMembersController.text.length),
+                        );
+                  }
+                },
               ),
 
               const SizedBox(height: 12),
@@ -1565,9 +1782,13 @@ class _SurveyScreenState extends State<SurveyScreen> {
                 onChanged: (v) {
                   setState(() {
                     agricultureIncome = v;
+
                     if (v == "No") {
                       agricultureController.clear();
+                      isFarmingExpanded = false; // 👈 ADD THIS
                       calculateTotalIncome();
+                    } else {
+                      isFarmingExpanded = true; // 👈 ADD THIS
                     }
                   });
                 },
@@ -1600,9 +1821,13 @@ class _SurveyScreenState extends State<SurveyScreen> {
                 onChanged: (v) {
                   setState(() {
                     livestockIncome = v;
+
                     if (v == "No") {
                       livestockController.clear();
+                      isLivestockExpanded = false;
                       calculateTotalIncome();
+                    } else {
+                      isLivestockExpanded = true;
                     }
                   });
                 },
@@ -1635,9 +1860,13 @@ class _SurveyScreenState extends State<SurveyScreen> {
                 onChanged: (v) {
                   setState(() {
                     serviceIncome = v;
+
                     if (v == "No") {
                       serviceController.clear();
+                      isServiceExpanded = false;
                       calculateTotalIncome();
+                    } else {
+                      isServiceExpanded = true;
                     }
                   });
                 },
@@ -1670,9 +1899,13 @@ class _SurveyScreenState extends State<SurveyScreen> {
                 onChanged: (v) {
                   setState(() {
                     shopIncome = v;
+
                     if (v == "No") {
                       shopController.clear();
+                      isEnterpriseExpanded = false;
                       calculateTotalIncome();
+                    } else {
+                      isEnterpriseExpanded = true;
                     }
                   });
                 },
@@ -1705,9 +1938,13 @@ class _SurveyScreenState extends State<SurveyScreen> {
                 onChanged: (v) {
                   setState(() {
                     wagesIncome = v;
+
                     if (v == "No") {
                       wagesController.clear();
+                      isWagesExpanded = false;
                       calculateTotalIncome();
+                    } else {
+                      isWagesExpanded = true;
                     }
                   });
                 },
@@ -1748,6 +1985,11 @@ class _SurveyScreenState extends State<SurveyScreen> {
               "Farming Status",
               isFarmingExpanded,
                   () {
+                if (agricultureIncome != "Yes") {
+                  showMsg("Enable Agriculture Income first");
+                  return;
+                }
+
                 setState(() => isFarmingExpanded = !isFarmingExpanded);
               },
             ),
@@ -1920,6 +2162,11 @@ class _SurveyScreenState extends State<SurveyScreen> {
               "Livestock Status",
               isLivestockExpanded,
                   () {
+                if (livestockIncome != "Yes") {
+                  showMsg("Enable Livestock Income first");
+                  return;
+                }
+
                 setState(() => isLivestockExpanded = !isLivestockExpanded);
               },
             ),
@@ -2007,6 +2254,11 @@ class _SurveyScreenState extends State<SurveyScreen> {
               "Service Status",
               isServiceExpanded,
                   () {
+                if (serviceIncome != "Yes") {
+                  showMsg("Enable Service Income first");
+                  return;
+                }
+
                 setState(() => isServiceExpanded = !isServiceExpanded);
               },
             ),
@@ -2083,6 +2335,11 @@ class _SurveyScreenState extends State<SurveyScreen> {
               "Enterprise / Shop Status",
               isEnterpriseExpanded,
                   () {
+                if (shopIncome != "Yes") {
+                  showMsg("Enable Shop Income first");
+                  return;
+                }
+
                 setState(() => isEnterpriseExpanded = !isEnterpriseExpanded);
               },
             ),
@@ -2132,6 +2389,11 @@ class _SurveyScreenState extends State<SurveyScreen> {
               "Wages Status",
               isWagesExpanded,
                   () {
+                if (wagesIncome != "Yes") {
+                  showMsg("Enable Wages Income first");
+                  return;
+                }
+
                 setState(() => isWagesExpanded = !isWagesExpanded);
               },
             ),
@@ -2211,11 +2473,27 @@ class _SurveyScreenState extends State<SurveyScreen> {
             const SizedBox(height: 24),
 
             // Submit Button
-            ElevatedButton(
-              onPressed: () {
-                // submit logic later
-              },
-              child: const Text("Submit"),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 50),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    submitSurvey();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFF0366A3) ,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30), // rounded
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text(
+                    "Submit",
+                    style: TextStyle(fontSize: 16, color: Colors.white),
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -2240,11 +2518,14 @@ class _SurveyScreenState extends State<SurveyScreen> {
     double lease = double.tryParse(leaseLandController.text) ?? 0;
     return (land + lease) > 0;
   }
-
+  DateTime? selectedDateTime;
   void setCurrentDateTime() {
     final now = DateTime.now();
 
-    // Format: 11-04-2026 10:30 AM
+    // ✅ store actual DateTime (IMPORTANT)
+    selectedDateTime = now;
+
+    // ✅ UI format (no change)
     String formatted =
         "${now.day.toString().padLeft(2, '0')}-"
         "${now.month.toString().padLeft(2, '0')}-"
@@ -2413,7 +2694,378 @@ class _SurveyScreenState extends State<SurveyScreen> {
       isVillageLoading = false;
     });
   }
+  Future<void> submitSurvey({bool isRetry = false}) async {
+    HttpOverrides.global = MyHttpOverrides();
+
+    if (gpsController.text.isEmpty ||
+        gpsController.text == "Location OFF" ||
+        gpsController.text == "Permission Denied") {
+
+      showMsg("Please enable location first");
+
+      await getCurrentLocation(); // try again
+
+      return;
+    }
+
+    // 2️⃣ Project
+    if (selectedProject == null || selectedProject!.name.isEmpty) {
+      showMsg("Please select project name");
+      return;
+    }
 
 
 
+
+    // ✅ PROJECT VALIDATION FIRST
+    if (selectedProject == null || selectedProject!.name.isEmpty) {
+      showMsg("Please select project name");
+      return;
+    }
+
+    // ✅ FAMILY HEAD VALIDATION
+    if (headNameController.text.trim().isEmpty) {
+      showMsg("Enter Family Head Name");
+      return;
+    }
+
+    if (headFatherController.text.trim().isEmpty) {
+      showMsg("Enter Father / Husband Name");
+      return;
+    }
+
+    if (headAge == null || headAge == 0) {
+      showMsg("Select Age");
+      return;
+    }
+
+    if (headGender == null || headGender!.isEmpty) {
+      showMsg("Select Gender");
+      return;
+    }
+
+    if (headEducation == null || headEducation!.isEmpty) {
+      showMsg("Select Education");
+      return;
+    }
+
+    if (headOccupation == null || headOccupation!.isEmpty) {
+      showMsg("Select Occupation");
+      return;
+    }
+
+    if (!RegExp(r'^[0-9]{10}$').hasMatch(mobileController.text)) {
+      hideLoader();
+      showMsg("Enter valid 10 digit mobile number");
+      return;
+    }
+    showLoader(); // after validation
+    final prefs = await SharedPreferences.getInstance();
+    String? token = prefs.getString("token");
+
+    final empid = await SharedPreferences.getInstance();
+    int empId = empid.getInt("emp_id") ?? 0;
+
+    if (token == null) {
+      hideLoader();
+      showToast("Session expired. Login again.");
+      return;
+    }
+
+    var url = Uri.parse("https://api.paniinap.in/api/public/InsertSurvey");
+
+    try {
+      var body = {
+        "Survey": {
+          "SurveyId": "0",
+          "HouseHold_Id": "",
+
+          "ProjectName": selectedProject?.name ?? "",
+
+          "SurveyDateTime": selectedDateTime != null? formatApiTime(selectedDateTime!)
+              : "",
+          "GPSLocation": gpsController.text,
+
+          "StateName": "Uttar Pradesh",
+          "DistrictName": selectedDistrict?.name ?? "",
+          "BlockName": selectedBlock?.name ?? "",
+          "VillageName": Villagecontroller.text,
+          "HamletName": Hamletcontroller.text,
+
+          "FamilyHeadName": headNameController.text,
+          "FatherOrHusbandName": headFatherController.text,
+          "MobileNumber": mobileController.text,
+          "Age": headAge ?? 0,
+          "Gender": headGender ?? "",
+          "Education": headEducation ?? "",
+          "PrimaryOccupation": headOccupation ?? "",
+
+          "Religion": religion ?? "",
+          "Category": category ?? "",
+          "FamilyCard": familyCard ?? "",
+
+          "HouseType": houseType ?? "",
+          "DrinkingWaterSource": waterSource ?? "",
+          "SolarEnergyConsumption": solar ?? "",
+          "SolarUseType": solarType?? "",
+
+          "ToiletFacility": toilet ?? "",
+          "ElectricityConnection": electricity ?? "",
+          "BankAccount": bank ?? "",
+
+          "PregnantWomen": pregnant ?? "",
+          "LactatingMothers": lactating ?? "",
+          "ChildrenFullyImmunized":hasYoungChildren() ? immunized ?? "" : "",
+          "ChildrenAnganwadi": hasYoungChildren() ? anganwadi ?? "" : "",
+
+          "InstitutionalDelivery": delivery ?? "",
+          "HealthInsurance": insurance ?? "",
+          "HandwashingFacility": handwash ?? "",
+
+          "DisabledMember": disabled ?? "",
+          "DisabilityType": disabilityType ?? "",
+          "DisabilityCertificate": certificate ?? "",
+
+          "MigratingMembers": migratingMembersController.text,
+          "MigrationDays": daysMigratedController.text,
+          "MigrationWorkType": workType ?? "",
+
+          "Assets": selectedAssets.join(","), // multi select
+          "GovtSchemes": selectedSchemes.join(","),
+
+          "IncomeAgriculture": int.tryParse(agricultureController.text) ?? 0,
+          "IncomeLivestock": int.tryParse(livestockController.text) ?? 0,
+          "IncomeService": int.tryParse(serviceController.text) ?? 0,
+          "IncomeBusiness": int.tryParse(shopController.text) ?? 0,
+          "IncomeWages": int.tryParse(wagesController.text) ?? 0,
+          "TotalIncome": int.tryParse(totalIncomeController.text) ?? 0,
+
+          "LandHolding": double.tryParse(landHoldingController.text) ?? 0,
+          "LandLease": double.tryParse(leaseLandController.text) ?? 0,
+          "FarmerRegistered": farmerRegistered ?? "",
+
+          "CropKharif": selectedKharif.join(", "),
+          "CropRabi": selectedRabi.join(","),
+          "CropZaid": selectedZaid.join(","),
+
+          "CowCount": int.tryParse(cowController.text) ?? 0,
+          "BuffaloCount": int.tryParse(buffaloController.text) ?? 0,
+          "GoatCount": int.tryParse(goatController.text) ?? 0,
+          "OtherLivestock": int.tryParse(otherLivestockController.text) ?? 0,
+
+          "DailyMilkProduction": int.tryParse(milkProductionController.text) ?? 0,
+          "DailyMilkSale": int.tryParse(milkSaleController.text) ?? 0,
+
+          "ServiceType": serviceType ?? "",
+          "ServiceNature": serviceNature ?? "",
+          "JobType": jobType ?? "",
+
+          "EnterpriseType": enterpriseTypeController.text,
+          "EnterpriseLocation": enterpriseLocationController.text,
+          "ShopMaterials": shopMaterialController.text,
+
+          "WorkType": wagesWorkType ?? "",
+
+          "emp_id": empId, // 👉 replace if dynamic
+          "CreatedAt": dateTimeController.text
+
+
+        },
+
+        // ✅ FAMILY MEMBERS LIST
+        "FamilyMembers": members.map((e) => {
+          "MemberName": e.name,
+          "FatherOrHusbandName": e.fatherName,
+          "RelationWithHead": e.relation,
+          "Gender": e.gender,
+          "Age": e.age,
+          "Education": e.education,
+          "PrimaryOccupation": e.occupation,
+        }).toList(),
+
+        // ✅ CHILDREN LIST
+        "Children": children.map((e) => {
+          "ChildName": e.name,
+          "FatherName": e.fatherName,
+          "RelationWithHead": e.relation,
+          "Gender": e.gender,
+          "Age": e.age,
+          "MaritalStatus": e.maritalStatus,
+          "Education": e.education,
+          "EducationStatus": e.educationStatus,
+          "SchoolingDetails": e.schooling,
+        }).toList(),
+      };
+
+      log("PARAMETERS → ${jsonEncode(body)}");
+
+
+      var response = await http.post(
+        url,
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode(body),
+      );
+
+      /// 🔥 HANDLE TOKEN EXPIRE
+      if (response.statusCode == 401 && !isRetry) {
+        debugPrint("⚠️ Token expired → refreshing");
+
+        bool refreshed = await refreshTokenFlutter();
+
+        if (refreshed) {
+          hideLoader(); // 🔥 CLOSE OLD LOADER
+          return submitSurvey(isRetry: true); // 🔁 retry once
+        } else {
+          showToast("Session expired. Please login again.");
+          return;
+        }
+      }
+
+      /// ✅ SUCCESS
+      if (response.statusCode == 200) {
+        hideLoader();
+        var data = jsonDecode(response.body);
+
+        showToast(data["msg"] ?? "Survey submitted successfully");
+        // ✅ DEFINE HERE
+        String resultMsg = data["result"] ?? "Survey submitted successfully";
+        log("SUCCESS → $data");
+
+        clearForm(); // ✅ only here
+
+        // 🔥 Navigate to success screen
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => SurveySuccessScreen(message: resultMsg),
+          ),
+        );
+
+      } else {
+        hideLoader();
+        showToast("Submission failed");
+        log("FAILED → ${response.body}");
+      }
+
+    } catch (e) {
+      hideLoader();
+      showToast("Error: $e");
+      debugPrint("❌ ERROR → $e");
+    }
+  }
+
+  void showToast(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg)),
+    );
+  }
+  void clearForm() {
+    headNameController.clear();
+    headFatherController.clear();
+    mobileController.clear();
+
+    selectedDistrict = null;
+    selectedBlock = null;
+    selectedVillage = null;
+
+    selectedKharif.clear();
+    selectedRabi.clear();
+    selectedZaid.clear();
+
+    setState(() {});
+  }
+
+  void showMsg(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  bool hasYoungChildren() {
+    return children.any((child) {
+      return (child.age ?? 0) >= 0 && (child.age ?? 0) <= 5;
+    });
+  }
+/////////  live hood logic
+  bool hasAgricultureIncome() {
+    return (int.tryParse(agricultureController.text) ?? 0) > 0;
+  }
+
+  bool hasLivestockIncome() {
+    return (int.tryParse(livestockController.text) ?? 0) > 0;
+  }
+
+  bool hasServiceIncome() {
+    return (int.tryParse(serviceController.text) ?? 0) > 0;
+  }
+
+  bool hasBusinessIncome() {
+    return (int.tryParse(shopController.text) ?? 0) > 0;
+  }
+
+  bool hasWagesIncome() {
+    return (int.tryParse(wagesController.text) ?? 0) > 0;
+  }
+/////// show loader
+  void showLoader() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // ❌ user cannot close
+      builder: (context) {
+        return const Center(
+          child: CircularProgressIndicator(),
+        );
+      },
+    );
+  }
+
+/////hide loader
+  void hideLoader() {
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    }
+  }
+
+
+  //////migration validation
+  bool validateMigrationSection() {
+
+    // 🔴 Check family members exist
+    if (members.isEmpty) {
+      showMsg("Please add family members first");
+      return false;
+    }
+
+    // 🔴 Check input empty
+    if (migratingMembersController.text.isEmpty) {
+      showMsg("Enter number of migrating members");
+      return false;
+    }
+
+    int totalFamily = members.length;
+    int migrated = int.tryParse(migratingMembersController.text) ?? 0;
+
+    // 🔴 MAIN LOGIC (your requirement)
+    if (migrated > totalFamily) {
+      showMsg(
+          "Migrated members ($migrated) cannot exceed total family members ($totalFamily)");
+      return false;
+    }
+
+    return true;
+  }
+  String formatApiTime(DateTime dt) {
+    return "${dt.year}-"
+        "${dt.month.toString().padLeft(2, '0')}-"
+        "${dt.day.toString().padLeft(2, '0')}T"
+        "${dt.hour.toString().padLeft(2, '0')}:"
+        "${dt.minute.toString().padLeft(2, '0')}:"
+        "${dt.second.toString().padLeft(2, '0')}";
+  }
   }

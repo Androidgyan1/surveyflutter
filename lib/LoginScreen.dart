@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:surveyflutter/SurveyScreen.dart';
 import 'package:surveyflutter/sslbyypass.dart';
 
 import 'DashBord.dart';
@@ -40,13 +41,14 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      // ✅ SSL BYPASS (like Android unsafe)
       HttpOverrides.global = MyHttpOverrides();
 
       var url = Uri.parse('https://api.paniinap.in/token');
 
-      // ✅ SHA-256 password
-      String hashedPassword = sha256Hash(passwordController.text.trim());
+      String username = usernameController.text.trim();
+      String password = passwordController.text.trim();
+
+      String hashedPassword = sha256Hash(password);
 
       var response = await http.post(
         url,
@@ -55,7 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
         },
         body: {
           "grant_type": "password",
-          "UserName": usernameController.text.trim(),
+          "UserName": username,
           "password": hashedPassword,
         },
       );
@@ -64,11 +66,24 @@ class _LoginScreenState extends State<LoginScreen> {
         var data = jsonDecode(response.body);
 
         String token = data["access_token"];
+        int expiresIn = data["expires_in"];
 
-        // ✅ Save token
+        // ✅ Save data (same as Kotlin)
         SharedPreferences prefs = await SharedPreferences.getInstance();
+
+        await prefs.setString("username", username);
+        await prefs.setString("password", password);
         await prefs.setString("token", token);
 
+        int expiryTime =
+            DateTime.now().millisecondsSinceEpoch + (expiresIn * 1000);
+        await prefs.setInt("expiry", expiryTime);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Login Success")),
+        );
+
+        // ✅ DIRECT NAVIGATION (NO resume logic)
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -87,7 +102,6 @@ class _LoginScreenState extends State<LoginScreen> {
       isLoading = false;
     });
   }
-
   void showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg)),
@@ -98,149 +112,144 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0366A3),
-      body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 10),
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: IntrinsicHeight(
+                    child: Column(
+                      children: [
 
-            Image.asset(
-              'assets/panitwo.png',
-              height: 100,
-              width: 120,
-              color: Colors.white,
-            ),
+                        SizedBox(height: constraints.maxHeight * 0.03),
 
-            const SizedBox(height: 4),
+                        // 🔵 LOGO
+                        Image.asset(
+                          'assets/panitwo.png',
+                          height: constraints.maxHeight * 0.12,
+                          width: constraints.maxWidth * 0.3,
+                          color: Colors.white,
+                        ),
 
-            const Text(
-              "Welcome",
-              style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFFDBEAFE),
-              ),
-            ),
+                        const SizedBox(height: 6),
 
-            const SizedBox(height: 4),
+                        const Text(
+                          "Welcome",
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFDBEAFE),
+                          ),
+                        ),
 
-            const Text(
-              "Login in to your account to continue",
-              style: TextStyle(color: Color(0xFFE2E8F0)),
-            ),
+                        const SizedBox(height: 4),
 
-            const SizedBox(height: 20),
+                        const Text(
+                          "Login in to your account to continue",
+                          style: TextStyle(color: Color(0xFFE2E8F0)),
+                        ),
 
-            Expanded(
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Card(
-                    elevation: 10,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // ✅ Username
-                          TextField(
-                            controller: usernameController,
-                            decoration: InputDecoration(
-                              prefixIcon: Padding(
-                                padding: const EdgeInsets.all(10),
-                                child: Image.asset(
-                                  'assets/usertwo.png',
-                                  width: 20,
-                                ),
-                              ),
-                              hintText: "Username",
-                              filled: true,
-                              fillColor: Colors.white,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
+                        const Spacer(),
+
+                        // 🔳 LOGIN CARD
+                        Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: constraints.maxWidth * 0.05,
+                          ),
+                          child: Card(
+                            elevation: 20,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Padding(
+                              padding: EdgeInsets.all(constraints.maxWidth * 0.06),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+
+                                  // USERNAME
+                                  TextField(
+                                    controller: usernameController,
+                                    decoration: InputDecoration(
+                                      prefixIcon: Padding(
+                                        padding: const EdgeInsets.all(10),
+                                        child: Image.asset('assets/usertwo.png'),
+                                      ),
+                                      hintText: "Username",
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 16),
+
+                                  // PASSWORD
+                                  TextField(
+                                    controller: passwordController,
+                                    obscureText: true,
+                                    decoration: InputDecoration(
+                                      prefixIcon: Padding(
+                                        padding: const EdgeInsets.all(10),
+                                        child: Image.asset('assets/padlocktwo.png'),
+                                      ),
+                                      hintText: "Password",
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 24),
+
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 50,
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF0366A3),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                      ),
+                                      onPressed: isLoading ? null : login,
+                                      child: const Text("LOGIN",
+                                          style: TextStyle(color: Colors.white)),
+                                    ),
+                                  ),
+
+                                  if (isLoading) ...[
+                                    const SizedBox(height: 10),
+                                    const CircularProgressIndicator(),
+                                  ]
+                                ],
                               ),
                             ),
                           ),
+                        ),
 
-                          const SizedBox(height: 16),
+                        const Spacer(),
 
-                          // ✅ Password
-                          TextField(
-                            controller: passwordController,
-                            obscureText: true,
-                            decoration: InputDecoration(
-                              prefixIcon: Padding(
-                                padding: const EdgeInsets.all(10),
-                                child: Image.asset(
-                                  'assets/padlocktwo.png',
-                                  width: 20,
-                                ),
-                              ),
-                              hintText: "Password",
-                              filled: true,
-                              fillColor: Colors.white,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 10),
+                          child: Text(
+                            "People's Action for National Integration - PANI",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFFF8FAFC),
                             ),
                           ),
-
-                          const SizedBox(height: 24),
-
-                          SizedBox(
-                            width: double.infinity,
-                            height: 50,
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              // ✅ Call API instead of delay
-                              onPressed: isLoading ? null : login,
-                              child: const Text(
-                                "LOGIN",
-                                style: TextStyle(color: Colors.white),
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 10),
-
-                          if (isLoading)
-                            const SizedBox(
-                              height: 30,
-                              width: 30,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 3,
-                              ),
-                            ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              ),
-            ),
-
-            const Padding(
-              padding: EdgeInsets.only(bottom: 10),
-              child: Text(
-                "People's Action for National Integration - PANI",
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFFF8FAFC),
-                ),
-              ),
-            ),
-          ],
+              );
+            },
+          ),
         ),
-      ),
     );
   }
 }
