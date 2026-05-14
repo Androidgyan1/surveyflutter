@@ -1,5 +1,5 @@
 import 'dart:io';
-
+import 'package:upgrader/upgrader.dart';
 import 'package:flutter/material.dart';
 import 'package:surveyflutter/Splash_Screen.dart';
 import 'package:surveyflutter/sslbyypass.dart';
@@ -15,9 +15,11 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: const Splash_Screen(),
+    return UpgradeAlert(
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: const Splash_Screen(),
+      ),
     );
   }
 }

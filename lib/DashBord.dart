@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:surveyflutter/AppUpdateHelper/AppUpdateHelper.dart';
+import 'package:surveyflutter/HistoryScreen.dart';
 import 'package:surveyflutter/LeaveManagementScreen.dart';
 import 'package:surveyflutter/SurveyScreen.dart';
 import 'package:surveyflutter/LoginScreen.dart';
@@ -37,6 +39,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     loadCachedProfile();
     callProfileApi();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AppUpdateHelper.checkForUpdate(context);
+    });
   }
 
   // ✅ LOAD CACHE
@@ -386,7 +391,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               subtitle: "Reports",
                               icon: 'assets/file.png',
                               color: Colors.purple.shade100,
-                              onTap: () => showToast("Working..."),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const HistoryScreen(),
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         );
