@@ -1,7 +1,14 @@
 
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:surveyflutter/Model/LeaveTypeModel.dart';
+import 'package:surveyflutter/Model/ResponsibleEmployeeModel.dart';
+import 'package:surveyflutter/RefreshToken/refreshTokenFlutter.dart';
 class LeaveManagementScreen extends StatefulWidget {
   const LeaveManagementScreen({super.key});
 
@@ -14,6 +21,11 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
   String name = "N/A";
   String code = "N/A";
   String designation = "N/A";
+  String reportingManager = "";
+  String reportingManagerId = "";
+  String departmentId = "";
+  String designationId = "";
+  String projectId = "";
 
   final TextEditingController fromDateController = TextEditingController();
   final TextEditingController toDateController = TextEditingController();
@@ -21,10 +33,19 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
   final TextEditingController reasonController = TextEditingController();
   final TextEditingController emergencyNumberController =
   TextEditingController();
-  String? selectedChargeEmployee;
+  List<ResponsibleEmployeeModel> responsibleEmployees = [];
+
+  ResponsibleEmployeeModel? selectedChargeEmployee;
+
+  String departmentid = "";
+  String projectid = "";
   final TextEditingController attachmentController = TextEditingController();
 
   PlatformFile? selectedAttachment;
+
+  List<LeaveTypeModel> leaveTypes = [];
+
+  LeaveTypeModel? selectedLeaveType;
 
  // String? filePath = selectedAttachment?.path;
  // String? fileName = selectedAttachment?.name;
@@ -33,6 +54,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
   void initState() {
     super.initState();
     loadProfile();
+    getLeaveTypes();
   }
 
   Future<void> loadProfile() async {
@@ -42,7 +64,14 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
       name = prefs.getString("emp_name") ?? "N/A";
       code = prefs.getString("emp_code") ?? "N/A";
       designation = prefs.getString("designation") ?? "N/A";
+      departmentId =
+          prefs.getString("department_id") ?? "";
+
+      projectId =
+          prefs.getString("project_id") ?? "";
     });
+
+    getResponsibleEmployees();
   }
 
   Widget buildProfileCard() {
@@ -147,27 +176,37 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                   ),
         
                   const SizedBox(height: 10),
-        
-                  DropdownButtonFormField<String>(
-                    decoration: InputDecoration(
-                      labelText: "Select Leave Type",
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: DropdownButtonFormField<LeaveTypeModel>(
+                      value: selectedLeaveType,
+                      decoration: InputDecoration(
+                        labelText: "Select Leave Type",
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
+                      items: leaveTypes.map((item) {
+                        return DropdownMenuItem(
+                          value: item,
+                          child: Text(item.valueText),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          selectedLeaveType = value;
+                        });
+
+                        debugPrint(
+                          "Selected ID: ${value?.valueId}",
+                        );
+
+                        debugPrint(
+                          "Selected Text: ${value?.valueText}",
+                        );
+                      },
                     ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: "CL",
-                        child: Text("CL (Casual Leave)"),
-                      ),
-                      DropdownMenuItem(
-                        value: "SL",
-                        child: Text("SL (Sick Leave)"),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      // For now static
-                    },
                   ),
                   const SizedBox(height: 20),
                   const Padding(
@@ -354,7 +393,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
 
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: DropdownButtonFormField<String>(
+              child: DropdownButtonFormField<ResponsibleEmployeeModel>(
                 value: selectedChargeEmployee,
                 decoration: InputDecoration(
                   labelText: "Select Employee",
@@ -362,20 +401,33 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                items: const [
-                  DropdownMenuItem(
-                    value: "Mayank",
-                    child: Text("Mayank"),
-                  ),
-                ],
-                onChanged: (value) {
+
+                hint: const Text("No employee found"),
+
+                items: responsibleEmployees.map((item) {
+                  return DropdownMenuItem<ResponsibleEmployeeModel>(
+                    value: item,
+                    child: Text(item.name),
+                  );
+                }).toList(),
+
+                onChanged: responsibleEmployees.isEmpty
+                    ? null
+                    : (value) {
                   setState(() {
                     selectedChargeEmployee = value;
                   });
+
+                  debugPrint(
+                    "Employee Id: ${value?.id}",
+                  );
+
+                  debugPrint(
+                    "Employee Name: ${value?.name}",
+                  );
                 },
               ),
-            ),
-            const SizedBox(height: 20),
+            ),            const SizedBox(height: 20),
 
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 12),
@@ -439,13 +491,9 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                     elevation: 8,
                   ),
                   onPressed: () {
-                    // TODO: Call Leave API
 
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("Leave Request Submitted"),
-                      ),
-                    );
+                    submitLeave();
+                    // TODO: Call Leave API
                   },
                 ),
               ),
@@ -519,5 +567,255 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
       });
     }
   }
+  Future<void> getLeaveTypes() async {
+    try {
+      var response = await http.get(
+        Uri.parse(
+          "https://api.paniinap.in/api/public/LeaveType",
+        ),
+      );
 
+      if (response.statusCode == 200) {
+        var data = jsonDecode(response.body);
+
+        List result = data["result"];
+
+        setState(() {
+          leaveTypes = result
+              .map((e) => LeaveTypeModel.fromJson(e))
+              .toList();
+        });
+      }
+    } catch (e) {
+      debugPrint("Leave Type Error: $e");
+    }
+  }
+  Future<void> getResponsibleEmployees() async {
+    try {
+      if (departmentId.isEmpty) {
+        debugPrint("DepartmentId is empty");
+        return;
+      }
+
+      String projId = projectId.isEmpty ? "" : projectId;
+
+      var url = Uri.parse(
+        "https://api.paniinap.in/api/public/ResponsibleEmployeeList"
+            "?depid=$departmentId&projid=$projId",
+      );
+
+      debugPrint("Responsible Employee URL: $url");
+
+      var response = await http.get(url);
+
+      debugPrint("Responsible Employee Response: ${response.body}");
+
+      if (response.statusCode == 200) {
+        var data = jsonDecode(response.body);
+
+        if (data["status"] == "success" && data["result"] is List) {
+          List result = data["result"];
+
+          setState(() {
+            responsibleEmployees = result
+                .map((e) => ResponsibleEmployeeModel.fromJson(e))
+                .toList();
+
+            selectedChargeEmployee =
+            responsibleEmployees.isNotEmpty ? responsibleEmployees.first : null;
+          });
+        } else {
+          setState(() {
+            responsibleEmployees = [];
+            selectedChargeEmployee = null;
+          });
+
+          debugPrint("No responsible employee found: ${data["result"]}");
+        }
+      }
+    } catch (e) {
+      debugPrint("Responsible Employee Error: $e");
+    }
+  }
+  Future<void> submitLeave({bool isRetry = false}) async {
+
+    if (selectedLeaveType == null) {
+      showMsg("Please select leave type");
+      return;
+    }
+
+    if (fromDateController.text.isEmpty) {
+      showMsg("Please select From Date");
+      return;
+    }
+
+    if (toDateController.text.isEmpty) {
+      showMsg("Please select To Date");
+      return;
+    }
+
+    if (reasonController.text.trim().isEmpty) {
+      showMsg("Please enter reason");
+      return;
+    }
+
+    if (emergencyNumberController.text.trim().isEmpty) {
+      showMsg("Please enter emergency number");
+      return;
+    }
+
+    showLoader();
+
+    final prefs = await SharedPreferences.getInstance();
+
+    String? token = prefs.getString("token");
+
+    if (token == null) {
+      hideLoader();
+      showMsg("Session expired");
+      return;
+    }
+
+    int reportingManagerId = int.tryParse(
+        prefs.getString("reporting_manager_id") ?? "0") ??
+        0;
+
+    var url = Uri.parse(
+      "https://api.paniinap.in/api/Public/ApplyLeave",
+    );
+    String? attachmentBase64 = await convertAttachmentToBase64();
+    try {
+      var body = {
+        "leave_type_id": selectedLeaveType?.valueId,
+        "reason": reasonController.text.trim(),
+        "FromDate":  convertDateForApi(fromDateController.text),
+        "ToDate": convertDateForApi(toDateController.text),
+        "DaysOff":
+        int.tryParse(numberOfDaysController.text) ?? 0,
+        "reporting_user_id": reportingManagerId,
+
+        "supporting_attachment": attachmentBase64,
+
+        "emergency_contact":
+        emergencyNumberController.text.trim(),
+
+        "responsible_emp_id":
+        selectedChargeEmployee?.id,
+      };
+
+      debugPrint(
+        "LEAVE REQUEST => ${jsonEncode(body)}",
+      );
+
+      var response = await http.post(
+        url,
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode(body),
+      );
+
+      /// TOKEN EXPIRE
+      if (response.statusCode == 401 && !isRetry) {
+        debugPrint("Token expired -> Refresh");
+
+        bool refreshed =
+        await refreshTokenFlutter();
+
+        if (refreshed) {
+          hideLoader();
+          return submitLeave(isRetry: true);
+        } else {
+          hideLoader();
+          showMsg("Session expired. Login again.");
+          return;
+        }
+      }
+
+      if (response.statusCode == 200) {
+        hideLoader();
+
+        var data = jsonDecode(response.body);
+
+        showMsg(
+          data["result"] ??
+              "Leave Request Submitted Successfully",
+        );
+
+        debugPrint(response.body);
+
+        clearLeaveForm();
+      } else {
+        hideLoader();
+
+        debugPrint(response.body);
+
+        showMsg("Failed to submit leave request");
+      }
+    } catch (e) {
+      hideLoader();
+      showMsg("Error: $e");
+    }
+  }
+  void showMsg(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  /////hide loader
+  void hideLoader() {
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    }
+  }
+
+  /////// show loader
+  void showLoader() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // ❌ user cannot close
+      builder: (context) {
+        return const Center(
+          child: CircularProgressIndicator(),
+        );
+      },
+    );
+  }
+
+  void clearLeaveForm() {
+
+    setState(() {
+      selectedLeaveType = null;
+      selectedChargeEmployee = null;
+      selectedAttachment = null;
+    });
+
+    fromDateController.clear();
+    toDateController.clear();
+    numberOfDaysController.clear();
+    reasonController.clear();
+    emergencyNumberController.clear();
+    attachmentController.clear();
+  }
+
+  String convertDateForApi(String date) {
+    return date.replaceAll("-", "/");
+  }
+
+  Future<String?> convertAttachmentToBase64() async {
+    if (selectedAttachment == null || selectedAttachment!.path == null) {
+      return null;
+    }
+
+    final file = File(selectedAttachment!.path!);
+
+    final bytes = await file.readAsBytes();
+
+    return base64Encode(bytes);
+  }
 }

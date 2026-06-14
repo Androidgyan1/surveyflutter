@@ -93,6 +93,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
       await prefs.setString("designation", designation);
       await prefs.setInt("emp_id", result["emp_id"]); // 🔥 IMPORTANT
 
+      // ✅ CACHE EXTRA PROFILE DATA FOR FUTURE USE
+      await prefs.setString("mobile_no", result["mobileno"] ?? "");
+      await prefs.setString("email_id", result["emailid"] ?? "");
+      await prefs.setString("permanent_address", result["permanent_address"] ?? "");
+      await prefs.setString("department_name", result["dep_name"] ?? "");
+      await prefs.setString("district_name", result["DisttName"] ?? "");
+      await prefs.setString("image_path", result["ImagePath"] ?? "");
+      await prefs.setString("joining_date", result["joining_date"] ?? "");
+
+      await prefs.setString("reporting_manager", result["ReportingManager"] ?? "");
+      await prefs.setString("reporting_manager_id", result["ReportingManagerId"] ?? "");
+
+      await prefs.setString("department_id", result["DepartmentId"] ?? "");
+      await prefs.setString("designation_id", result["designation_id"] ?? "");
+      await prefs.setString("project_id", result["project_id"] ?? "");
+
+
     } else if (response.statusCode == 401) {
       await refreshToken();
       await callProfileApi(); // retry
